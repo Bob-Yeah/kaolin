@@ -32,17 +32,27 @@ import torch.nn as nn
 ##################################################################
 class TexRender(nn.Module):
 
-    def __init__(self, height, width):
+    def __init__(self, height, width, filtering='nearest'):
         super(TexRender, self).__init__()
 
         self.height = height
         self.width = width
+        self.filtering = filtering
 
-    def forward(self, points, cameras, colors):
+    def forward(self,
+                points,
+                cameras,
+                uv_bxpx2,
+                texture_bx3xthxtw,
+                ft_fx3=None):
 
         ##############################################################
         # first, MVP projection in vertexshader
         points_bxpx3, faces_fx3 = points
+
+        # use faces_fx3 as ft_fx3 if not given
+        if ft_fx3 is None:
+            ft_fx3 = faces_fx3
 
         # camera_rot_bx3x3, camera_pos_bx3, camera_proj_3x1 = cameras
 
@@ -61,7 +71,6 @@ class TexRender(nn.Module):
 
         ############################################################
         # second, rasterization
-        uv_bxpx2, ft_fx3, texture_bx3xthxtw = colors
         c0 = uv_bxpx2[:, ft_fx3[:, 0], :]
         c1 = uv_bxpx2[:, ft_fx3[:, 1], :]
         c2 = uv_bxpx2[:, ft_fx3[:, 2], :]
@@ -81,6 +90,7 @@ class TexRender(nn.Module):
         hardmask = imfeat[:, :, :, 2:3]
 
         # fragrement shader
-        imrender = fragmentshader(imtexcoords, texture_bx3xthxtw, hardmask)
+        imrender = fragmentshader(imtexcoords, texture_bx3xthxtw, hardmask,
+                                  filtering=self.filtering)
 
         return imrender, improb_bxhxwx1, normal1_bxfx3
